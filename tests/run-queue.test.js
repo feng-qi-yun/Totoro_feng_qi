@@ -33,7 +33,7 @@ const route = {
     { longitude: 118.2, latitude: 31.2 },
   ],
 };
-const plan = { targetMeters: 3200, durationSeconds: 1200, strideMeters: 0.8 };
+const plan = { targetMeters: 3200, measuredMeters: 3300, durationSeconds: 1200, strideMeters: 0.8, fitTarget: 0.85 };
 const session = {
   scantronId: 'test-session-1',
   runStartedAt: '2026-09-15T10:00:00.000Z',
@@ -56,7 +56,7 @@ test('delayed jobs store the real execution input and retain the confirmation ti
 
   assert.equal(job.delayMs, 1_200_000);
   assert.equal(job.scheduledAt, '2026-09-15T10:20:00.000Z');
-  assert.equal(job.data.schemaVersion, 4);
+  assert.equal(job.data.schemaVersion, 5);
   assert.equal(job.data.jobId, 'job-1');
   assert.deepEqual(job.data.payload.input, { task, route, ...identity });
   assert.deepEqual(job.data.payload.plan, plan);

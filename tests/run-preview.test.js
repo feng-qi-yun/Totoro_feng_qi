@@ -21,12 +21,15 @@ test('run preview stores a compact random plan without exposing credentials or t
   const serialized = JSON.stringify(preview);
 
   assert.equal(preview.track.routeName, '测试路线');
-  assert.equal(preview.track.km, '3.20');
   assert.match(preview.previewToken, /^[0-9a-f-]{36}$/);
   assert.equal(serialized.includes(identity.token), false);
   assert.equal(serialized.includes('pointList'), false);
   const plan = verifyRunPreview(preview.previewToken, { task, route, identity }, { now });
   assert.equal(plan.targetMeters, 3200);
+  // 实测里程必须比任务里程多一点，且预览显示的就是最终会上报的值
+  assert.ok(plan.measuredMeters > plan.targetMeters);
+  assert.equal(preview.track.km, (plan.measuredMeters / 1000).toFixed(2));
+  assert.ok(Number(preview.track.km) > 3.2 && Number(preview.track.km) <= 3.2 * 1.06);
 });
 
 test('run preview rejects unknown IDs, expiry, and identity or route changes', () => {
@@ -60,6 +63,7 @@ test('route-free preview keeps the route-1 fallback contract without exposing it
   assert.equal(JSON.stringify(preview).includes('118.789377'), false);
   const plan = verifyRunPreview(preview.previewToken, { task, route: undefined, identity });
   assert.equal(plan.targetMeters, 3200);
+  assert.ok(plan.measuredMeters > plan.targetMeters);
 });
 
 function request(path, body) {
