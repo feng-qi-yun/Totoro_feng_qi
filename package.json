@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test": "node --test tests/*.test.js",
     "start": "next start",
-    "worker:run": "node scripts/run-worker.js"
+    "worker:run": "node scripts/run-worker.js",
+    "sample:runs": "node scripts/sample-real-runs.js"
   },
   "dependencies": {
     "@giscus/react": "^3.1.0",

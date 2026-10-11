@@ -75,9 +75,31 @@ sudo tail -f /var/log/nginx/error.log
 
 ## 开始跑步
 
-任务页会先生成路线、里程、用时、配速和步数预览，确认后再执行真实跑步接口。预览数据以随机 ID 在服务端临时保存十分钟，不包含 Token 或生成后的轨迹点；服务重启后需要重新生成预览。确认开始时使用预览选定的统计参数，以 `Math.random` 生成随机起点、约 2 米 GPS 抖动、8–12 米采样间距和非均匀时间戳，然后依次执行准备配置、`getRunBegin`、点位查询、`sunRunExercises` 和 `sunRunExercisesDetail`，成绩仍然立即提交。
+任务页会先生成路线、里程、用时、配速和步数预览，确认后再执行真实跑步接口。预览数据以随机 ID 在服务端临时保存十分钟，不包含 Token 或生成后的轨迹点；服务重启后需要重新生成预览。确认开始时使用预览选定的统计参数，以 `Math.random` 生成随机起点、约 2 米但**相邻点相关**的 GPS 抖动（单步增量上限 1.5 米）、8–12 米采样间距和波动很小的非均匀时间戳，然后依次执行准备配置、`getRunBegin`、点位查询、`sunRunExercises` 和 `sunRunExercisesDetail`，成绩仍然立即提交。
 
 任务没有固定路线时，预览显示“无固定路线”，开始后使用内置路线 1 生成轨迹，同时继续向上游提交空 `lineId` 和空 `sunrunPathPointList`。若学校启用了开跑人脸、随机人脸或摄像头检查，流程会在创建场次前停止，不会伪造校验资料。
+
+### 里程与配速
+
+上报的里程不允许恰好等于任务里程。预览会按 `DISTANCE_GAIN_BAND`（`1.01–1.06`）随机选定本次的实测里程并显示出来，确认开始时**先把轨迹沿折线裁到精确的实测长度**，再由此派生 `km`、`avgSpeed`、`steps`：三者都来自同一份提交轨迹，服务端用 `sunRunExercisesDetail` 的点位重算长度时得到同一个值。配速按小程序 `calSpeed` 的方式计算（每公里分钟数的整数部分与秒数分别向下取整），因此不会出现比真实客户端高一秒的取值。无固定路线任务同样按实测里程上报。
+
+用时不贴最快配速，而是取自「任务允许区间」与「最慢用时（`maxTime`）的 `SLOW_PACE_BAND`（`70%–95%`）」的交集，复现真实记录里常见的“贴着上限慢慢跑”；交集为空（窗口极窄）时才退回整个允许区间。`minTime` 10 分 / `maxTime` 25 分的 3.2 公里任务实测用时 17.5–23.8 分钟，对应配速 5'13"–7'17"，不再是 3'44" 那种成绩。
+
+### 轨迹拟合度
+
+学校算法（`calculateRouteSimilarity`：5 米采样、25 米阈值）比较提交轨迹与官方路线，官方客户端还会本地重算。为了让拟合度不再固定为 `1.00`，预览会为本次跑步随机选定 `0.75–0.90` 的目标值（`FIT_DEGREE_BAND`，显示为“预估拟合度”），确认开始后服务端给轨迹叠加横向偏离场：**路段中间最多偏离路线 40 米，官方路线顶点（打卡点）附近收敛回路线**，再用上述算法二分标定偏离幅度。因此上报的 `fitDegree` 落在目标区间内，并且等于按提交点位重算的结果；无固定路线任务不上报路线，`fitDegree` 仍为 `0.00`。目标值随预览保存在 `plan.fitTarget`，延迟任务载荷因此升到 `schemaVersion 5`，旧版本的延迟任务会以“不支持的延迟任务”失败而不做静默降级。
+
+顶点收敛半径按 `vertexTaperStages`（60 / 30 / 15 / 0 米）从严格到宽松逐级降级：顶点稀疏的路线优先保证经过每个顶点时贴身通过，顶点密集到留不出偏离空间的路线才会退化到纯路段偏离。半径与 `MAX_LATERAL_STEP_METERS`（相邻采样点横向位移上限 6 米）相容，收敛速度不会超出该上限。抖动和横向偏离都限幅后，相邻点间距保持在采样间距量级（最大约 19 米），且**没有任何相邻点的隐含速度超过小程序 `handleLocationChange` 丢弃点的 8 m/s 阈值**。
+
+### 用真实记录标定参数
+
+`scripts/sample-real-runs.js` 是只读采样脚本，调用 `getSunrunPaperList`、`selectSunRunDayScantronList`、`getSunrunArchDetail` 和 `getRunPointList`，把你自己真实跑步记录的里程、用时、拟合度、步数、存档轨迹和打卡点进度取回本地并统计分布。它不会调用 `sunRunExercises` 等提交接口。
+
+```bash
+TOTORO_TOKEN=<小程序 Token> npm run sample:runs -- --days 60 --detail
+```
+
+采样摘要里的 `reportedKmOverTask` 用于标定 `DISTANCE_GAIN_BAND`，`reportedFitDegree` 用于标定 `FIT_DEGREE_BAND`，存档轨迹的 `distanceToRoute` / `vertexPassage` 分布用于标定 `FIT_DEVIATION` 的振幅与顶点收敛半径。
 
 `SUNRUN_MINIPROGRAM_BASE_URL` 必须设置为无路径的 HTTPS origin；使用原接口时为 `https://wxxcx.xtotoro.com`。开始跑步会请求 `getRunBegin` 和两段成绩提交接口。
 
