@@ -102,8 +102,12 @@ sudo tail -f /var/log/nginx/error.log
 `scripts/sample-real-runs.js` 是只读采样脚本，调用 `getSunrunPaperList`、`selectSunRunDayScantronList`、`getSunrunArchDetail` 和 `getRunPointList`，把你自己真实跑步记录的里程、用时、拟合度、步数、存档轨迹和打卡点进度取回本地并统计分布。它不会调用 `sunRunExercises` 等提交接口。
 
 ```bash
-TOTORO_TOKEN=<小程序 Token> npm run sample:runs -- --days 60 --detail
+mkdir -p local-data
+TOTORO_TOKEN=<小程序 Token> npm run sample:runs -- --days 60 --detail \
+  > local-data/sample-60d.json 2> local-data/sample-60d.log
 ```
+
+采样结果放在仓库根的 `local-data/`，该目录已加入 `.gitignore`：里面有真实轨迹与成绩记录（含 GPS 坐标），只在本机用于标定，不要提交。
 
 采样摘要里的 `reportedKmOverTask` 用于标定 `DISTANCE_GAIN_BAND`，`reportedFitDegree`（学校字段 `trajectorySimilary`）用于标定 `FIT_DEGREE_BAND`，`durationOverMaxTime`（学校字段 `userTime`）用于标定 `SLOW_PACE_BAND`，`sampleGapSeconds` / `sampleSpacingMeters` / `impliedSpeedMedian` 用于标定采样节奏，`distanceToRoute` / `vertexPassage` 分布用于标定 `FIT_DEVIATION`。轨迹优先取记录列表里的 `routeItudes` 字段（自带时间戳），失败才回退 `getSunrunArchDetail`。
 
