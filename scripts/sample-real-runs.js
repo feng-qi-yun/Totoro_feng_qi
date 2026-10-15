@@ -117,6 +117,45 @@ export function shanghaiDates(days, now = Date.now()) {
   return Array.from({ length: days }, (_, index) => formatter.format(new Date(now - index * 86400000)));
 }
 
+// 记录列表的 routeItudes 字段："经度,纬度,时间;..."，比 getSunrunArchDetail 多带时间戳
+export function parseRouteItudes(value) {
+  const points = [];
+  const seconds = [];
+  for (const item of String(value || '').split(';')) {
+    const [longitude, latitude, time] = item.split(',');
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    points.push({ latitude: lat, longitude: lon });
+    seconds.push(Date.parse(String(time).replace(' ', 'T') + '+08:00') / 1000);
+  }
+  return { points, seconds };
+}
+
+// 真实采样节奏：相邻点间距、时间间隔与隐含速度
+export function describePaceProfile(points, seconds) {
+  if (points.length < 3) return null;
+  const gaps = [];
+  const spacings = [];
+  const speeds = [];
+  for (let index = 1; index < points.length; index += 1) {
+    const spacing = haversineDistance(points[index - 1], points[index]);
+    spacings.push(spacing);
+    const delta = seconds[index] - seconds[index - 1];
+    if (!Number.isFinite(delta) || delta <= 0) continue;
+    gaps.push(delta);
+    speeds.push(spacing / delta);
+  }
+  return {
+    spacing: describe(spacings),
+    gapSeconds: describe(gaps),
+    impliedSpeed: describe(speeds),
+    overEightMetersPerSecond: speeds.length
+      ? Number((speeds.filter(speed => speed > 8).length / speeds.length).toFixed(4))
+      : null,
+  };
+}
+
 export function toPoints(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.map(point => ({
@@ -254,8 +293,17 @@ export async function sampleRealRuns(options, { log = () => {} } = {}) {
           taskId: String(task.taskId),
           routeId: String(firstOf(record, ['pointId', 'lineId', 'runPointId']) ?? ''),
           km: Number(firstOf(record, ['toltalRun', 'totalRun', 'distance', 'km', 'mileage']) ?? NaN),
-          usedTime: String(firstOf(record, ['usedTime', 'useTime', 'time']) ?? ''),
-          fitDegree: Number(firstOf(record, ['fitDegree', 'fit', 'degree']) ?? NaN),
+          usedTime: String(firstOf(record, ['userTime', 'usedTime', 'useTime', 'time']) ?? ''),
+          fitDegree: Number(firstOf(record, ['trajectorySimilary', 'fitDegree', 'fit', 'degree']) ?? NaN),
+          positionDivation: Number(firstOf(record, ['positionDivation']) ?? NaN),
+          avgPace: Number(firstOf(record, ['avgPace']) ?? NaN),
+          warnFlag: String(firstOf(record, ['warnFlag']) ?? ''),
+          warnType: String(firstOf(record, ['warnType']) ?? ''),
+          verdict: String(firstOf(record, ['sobCode', 'sobId']) ?? ''),
+          ifQualify: String(firstOf(record, ['ifQualify']) ?? ''),
+          phoneInfo: String(firstOf(record, ['phoneInfo']) ?? ''),
+          version: String(firstOf(record, ['version']) ?? ''),
+          routeItudes: String(firstOf(record, ['routeItudes']) ?? ''),
           steps: Number(firstOf(record, ['steps', 'step', 'stepCount']) ?? NaN),
           startTime: String(firstOf(record, ['startTime', 'beginTime']) ?? ''),
           endTime: String(firstOf(record, ['endTime']) ?? ''),
@@ -279,7 +327,10 @@ export async function sampleRealRuns(options, { log = () => {} } = {}) {
         continue;
       }
       const body = detail?.body && typeof detail.body === 'object' ? detail.body : detail;
-      const track = toPoints(firstOf(body, ['pointList', 'points', 'polyline', 'sunrunPathPointList']) || []);
+      const parsed = parseRouteItudes(record.routeItudes);
+      const track = parsed.points.length
+        ? parsed.points
+        : toPoints(firstOf(body, ['pointList', 'points', 'polyline', 'sunrunPathPointList']) || []);
       const candidates = routes.filter(entry => entry.task.taskId === record.taskId);
       const matched = candidates.find(entry => String(entry.route.pointId) === record.routeId) || candidates[0];
       const item = {
@@ -293,6 +344,10 @@ export async function sampleRealRuns(options, { log = () => {} } = {}) {
         reportedFitDegree: Number.isFinite(record.fitDegree) ? record.fitDegree : null,
         reportedSteps: Number.isFinite(record.steps) ? record.steps : null,
         analysis: matched ? analyzeRealTrack(track, toPoints(matched.route.pointList)) : null,
+        paceProfile: parsed.points.length ? describePaceProfile(parsed.points, parsed.seconds) : null,
+        verdict: record.verdict,
+        warnType: record.warnType,
+        ifQualify: record.ifQualify,
         detailShape: body && typeof body === 'object' ? Object.keys(body) : null,
         ...(options.keepTracks ? { track } : {}),
       };
@@ -347,7 +402,16 @@ export async function sampleRealRuns(options, { log = () => {} } = {}) {
       routeId: record.routeId,
       km: Number.isFinite(record.km) ? record.km : null,
       usedTime: record.usedTime,
+      usedSeconds: parseDurationSeconds(record.usedTime),
       fitDegree: Number.isFinite(record.fitDegree) ? record.fitDegree : null,
+      positionDivation: Number.isFinite(record.positionDivation) ? record.positionDivation : null,
+      avgPace: Number.isFinite(record.avgPace) ? record.avgPace : null,
+      warnFlag: record.warnFlag,
+      warnType: record.warnType,
+      verdict: record.verdict,
+      ifQualify: record.ifQualify,
+      phoneInfo: record.phoneInfo,
+      version: record.version,
       steps: Number.isFinite(record.steps) ? record.steps : null,
       startTime: record.startTime,
       endTime: record.endTime,
@@ -375,6 +439,11 @@ export async function sampleRealRuns(options, { log = () => {} } = {}) {
       distanceToRouteP90: describe(detailed.map(item => item.analysis?.distanceToRoute.p90)),
       over25Ratio: describe(detailed.map(item => item.analysis?.distanceToRoute.over25Ratio)),
       vertexPassageMax: describe(detailed.map(item => item.analysis?.vertexPassage.max)),
+      // 采样节奏：用于标定每秒点数、相邻间距与隐含速度
+      sampleGapSeconds: describe(detailed.map(item => item.paceProfile?.gapSeconds.median)),
+      sampleSpacingMeters: describe(detailed.map(item => item.paceProfile?.spacing.median)),
+      impliedSpeedMedian: describe(detailed.map(item => item.paceProfile?.impliedSpeed.median)),
+      impliedSpeedMax: describe(detailed.map(item => item.paceProfile?.impliedSpeed.max)),
     },
     detail: detailed,
   };

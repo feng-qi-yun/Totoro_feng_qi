@@ -5,6 +5,7 @@ import {
   describe,
   parseArgs,
   parseDurationSeconds,
+  parseRouteItudes,
   pointToPolylineDistance,
   sampleRealRuns,
   shanghaiDates,
@@ -44,8 +45,15 @@ function fakeUpstream(calls) {
     '/wxxcx/sunrun/selectSunRunDayScantronList': {
       status: '00',
       data: [{
-        id: 'score-1', lineId: 'line-1', toltalRun: '3.35', usedTime: '00:22:10',
-        fitDegree: '0.86', steps: '4210', startTime: '06:31:00', endTime: '06:53:10',
+        id: 'score-1', lineId: 'line-1', toltalRun: '3.35', userTime: '00:22:10',
+        trajectorySimilary: '0.98', positionDivation: '0.98', avgPace: '397', steps: '4210',
+        warnFlag: '1', warnType: '3', sobCode: '正常跑步', ifQualify: '1',
+        phoneInfo: 'Redmi&2602BRT18C&Android 16', version: '8.0.76',
+        startTime: '06:31:00', endTime: '06:53:10',
+        // 轨迹取自 mock 路线的顶点，便于断言重算拟合度
+        routeItudes: realRoute.map((point, index) => (
+          `${point.longitude},${point.latitude},2026-10-15 06:31:0${index}`
+        )).join(';'),
       }],
     },
     '/wxxcx/sunrun/getSunrunArchDetail': {
@@ -91,10 +99,12 @@ test('sampling reads real records and never touches submission endpoints', async
     assert.equal(report.tasks[0].requiredFitDegree, '0.60');
     assert.equal(report.tasks[0].routes[0].vertexCount, 4);
     assert.equal(report.recordCount, 1);
-    assert.equal(report.records[0].fitDegree, 0.86);
+    assert.equal(report.records[0].fitDegree, 0.98);
+    assert.equal(report.records[0].usedSeconds, 1330);
+    assert.equal(report.records[0].verdict, '正常跑步');
     assert.equal(report.records[0].km, 3.35);
     assert.deepEqual(report.summary.reportedFitDegree, {
-      count: 1, min: 0.86, p25: 0.86, median: 0.86, p75: 0.86, max: 0.86,
+      count: 1, min: 0.98, p25: 0.98, median: 0.98, p75: 0.98, max: 0.98,
     });
     // 真实里程倍率：3.35 / 3.20
     assert.equal(report.summary.reportedKmOverTask.count, 1);
@@ -103,10 +113,12 @@ test('sampling reads real records and never touches submission endpoints', async
     // 用时占比：22:10 相对任务上限 25 分钟
     assert.equal(report.summary.durationOverMaxTime.count, 1);
     assert.equal(report.summary.durationOverMaxTime.median, 0.89);
+    assert.ok(report.detail[0].paceProfile.gapSeconds.median === 1);
+    assert.ok(report.detail[0].paceProfile.spacing.median > 0);
 
     const detail = report.detail[0];
     assert.equal(detail.routeId, 'line-1');
-    assert.equal(detail.analysis.pointCount, 3);
+    assert.equal(detail.analysis.pointCount, realRoute.length);
     assert.equal(detail.analysis.recomputedFitDegree, '1.00');
     assert.deepEqual(detail.runPointProgress, { allCount: 12, nullCount: 0, alreadyCount: 12 });
     assert.equal(detail.track, undefined);
@@ -153,6 +165,9 @@ test('sampling helpers handle sparse and missing fields', () => {
   assert.equal(shanghaiDates(2, Date.parse('2026-09-15T10:00:00Z')).length, 2);
   assert.equal(parseDurationSeconds('00:22:10'), 1330);
   assert.equal(parseDurationSeconds('22:10'), 1330);
+  const parsed = parseRouteItudes('119.48,31.37,2026-10-15 09:47:44;坏数据;119.49,31.38,2026-10-15 09:47:46');
+  assert.equal(parsed.points.length, 2);
+  assert.equal(parsed.seconds[1] - parsed.seconds[0], 2);
   assert.ok(Number.isNaN(parseDurationSeconds('')));
 
   const options = parseArgs(['--days', '7', '--detail', '--token', 'abc', '--no-redact']);
