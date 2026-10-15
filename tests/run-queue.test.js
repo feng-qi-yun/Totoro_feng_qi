@@ -33,7 +33,7 @@ const route = {
     { longitude: 118.2, latitude: 31.2 },
   ],
 };
-const plan = { targetMeters: 3200, measuredMeters: 3300, durationSeconds: 1200, strideMeters: 0.8, fitTarget: 0.85 };
+const plan = { targetMeters: 3200, measuredMeters: 3300, durationSeconds: 1200, strideMeters: 0.8, fitTarget: 0.97 };
 const session = {
   scantronId: 'test-session-1',
   runStartedAt: '2026-09-15T10:00:00.000Z',
