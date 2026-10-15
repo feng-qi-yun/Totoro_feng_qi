@@ -135,7 +135,7 @@ export default function StartRunPanel({ task, route }) {
         <div><dt>里程</dt><dd className="metric-value">{preview.track.km} km</dd></div>
         <div><dt>用时</dt><dd className="metric-value">{preview.track.usedTime}</dd></div>
         <div><dt>平均配速</dt><dd className="metric-value">{preview.track.avgSpeed}</dd></div>
-        <div><dt>步数</dt><dd className="metric-value">{preview.track.steps}</dd></div>
+        {preview.track.steps && <div><dt>步数</dt><dd className="metric-value">{preview.track.steps}</dd></div>}
         {preview.track.fitDegree != null && <div><dt>预估拟合度</dt><dd className="metric-value">{preview.track.fitDegree}</dd></div>}
         {preview.track.deviceModel && <div className="device-metric"><dt>模拟机型</dt><dd title={preview.track.deviceModel}>{preview.track.deviceModel}</dd></div>}
       </dl>
@@ -166,7 +166,7 @@ export default function StartRunPanel({ task, route }) {
       </div>
       <div className="inline-stats">
         <span>配速 {result.track.avgSpeed}</span>
-        <span>{result.track.steps} 步</span>
+        {result.track.steps && <span>{result.track.steps} 步</span>}
       </div>
       <p>场次 {result.scantronId}</p>
       <button className="action-button secondary" type="button" disabled={busy} onClick={generatePreview}>

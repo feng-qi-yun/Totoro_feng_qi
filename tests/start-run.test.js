@@ -39,12 +39,11 @@ test('fixture follows the selected route with realistic mini-program fields', ()
   assert.ok(measuredKm > 3.2 && measuredKm <= 3.2 * 1.06, `实测里程 ${measuredKm}`);
   assert.equal(fixture.exercise.km, measuredKm.toFixed(2));
   assert.ok(Number(fixture.exercise.km) > 3.2);
-  // 步数必须按实测里程折算，步幅落在 0.7~0.86 米
-  const steps = Number(fixture.exercise.steps);
-  assert.ok(steps > measuredKm * 1000 / 0.86 && steps < measuredKm * 1000 / 0.7, `步数 ${steps}`);
+  // 步数不上报：真实记录的 steps 为空，不编造步数
+  assert.equal(fixture.exercise.steps, '');
+  assert.equal(fixture.summary.steps, undefined);
   assert.equal(fixture.summary.km, fixture.exercise.km);
   assert.equal(fixture.summary.avgSpeed, fixture.exercise.avgSpeed);
-  assert.equal(fixture.summary.steps, fixture.exercise.steps);
   assert.notDeepEqual(
     points.map(({ latitude, longitude }) => ({ latitude, longitude })),
     alternateFixture.detail.pointList.map(({ latitude, longitude }) => ({ latitude, longitude })),
@@ -122,13 +121,12 @@ test('run plan randomizes bounded time and stride while preserving preview metri
     // 用时贴最慢配速：25 分钟上限的 70%~95%
     assert.ok(plan.durationSeconds >= 1500 * SLOW_PACE_BAND.min
       && plan.durationSeconds <= 1500 * SLOW_PACE_BAND.max, `用时 ${plan.durationSeconds}`);
-    assert.ok(plan.strideMeters >= 0.7 && plan.strideMeters <= 0.86);
     assert.ok(plan.fitTarget >= FIT_DEGREE_BAND.min && plan.fitTarget <= FIT_DEGREE_BAND.max);
     assert.ok(plan.measuredMeters > plan.targetMeters
       && plan.measuredMeters <= plan.targetMeters * DISTANCE_GAIN_BAND.max,
     `实测里程 ${plan.measuredMeters}`);
   }
-  assert.ok(new Set(plans.map(plan => `${plan.durationSeconds}:${plan.strideMeters}`)).size > 1);
+  assert.ok(new Set(plans.map(plan => `${plan.durationSeconds}:${plan.fitTarget}`)).size > 1);
   assert.ok(new Set(plans.map(plan => plan.fitTarget)).size > 1);
   assert.ok(new Set(plans.map(plan => plan.measuredMeters)).size > 1);
 
@@ -137,7 +135,7 @@ test('run plan randomizes bounded time and stride while preserving preview metri
   const fixture = buildRunFixture({ task, route, identity }, { plan });
   const { fitDegree, ...rest } = preview;
   assert.deepEqual(
-    (({ routeName, km, usedTime, avgSpeed, steps, deviceModel }) => ({ routeName, km, usedTime, avgSpeed, steps, deviceModel }))(fixture.summary),
+    (({ routeName, km, usedTime, avgSpeed, deviceModel }) => ({ routeName, km, usedTime, avgSpeed, deviceModel }))(fixture.summary),
     rest,
   );
   assert.equal(fitDegree, plan.fitTarget.toFixed(2));
