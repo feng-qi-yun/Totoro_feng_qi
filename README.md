@@ -1,22 +1,16 @@
-# Totoro Sunrun（本机版）
+# Totoro_feng_qi
 
-把学校「龙猫体育锻炼」小程序里的阳光跑、早操打卡搬到电脑上：你启动一个本机网页，粘贴小程序 Token
-登录，选任务和路线，确认后由程序生成与真实跑步记录同形态的轨迹，并在跑完后自动提交成绩。
-
-程序**只在你自己的电脑上运行**，没有服务器、没有数据库、不依赖任何云服务（只访问学校小程序自己的接口）。
-
-> **开始前请知悉**
-> - 需要你自己微信账号的 Token。Token 等同账号凭据，程序会把它存在本机（`local-data/`），别外传、别提交到仓库。
-> - 学校侧对异常成绩有风控，可能出现记录清空等情况，请自行判断是否使用。
-> - 程序不会伪造开跑人脸、随机人脸、摄像头校验：学校开启这些校验时，它会在创建场次前停下。
+这个项目fork自[yuyuyudlc/Totoro](https://github.com/yuyuyudlc/Totoro),旨在模拟更真实的跑步数据
 
 ---
 
-## 第一步：装 Node.js 与 pnpm
+## how to start
+
+### 第一步：装 Node.js 与 pnpm
 
 需要 **Node.js 20.9 或更高**（推荐 22）。pnpm 是包管理器，装完 Node 后再装它。
 
-### Windows
+#### Windows
 
 1. 打开 <https://nodejs.org>，下载 **LTS** 版 `.msi`，一路“下一步”安装；
 2. 按 `Win + X` → 打开「终端」或「PowerShell」，输入下面两行确认装好：
@@ -30,7 +24,7 @@
    ```
    若提示 `corepack` 不存在，改用：`npm install -g pnpm`
 
-### macOS
+#### macOS
 
 ```bash
 # 装 Node（二选一）
@@ -40,7 +34,7 @@ brew install node                 # 有 Homebrew
 corepack enable pnpm              # 或 npm install -g pnpm
 ```
 
-### Linux（Ubuntu / Debian）
+#### Linux（Ubuntu / Debian）
 
 发行版自带的 Node 往往过旧，推荐用 nvm：
 
@@ -53,7 +47,7 @@ corepack enable pnpm              # 或 npm install -g pnpm
 
 **确认**：`pnpm -v` 能打印出版本号（9 以上）就继续。
 
-## 第二步：下载项目
+### 第二步：下载项目
 
 ```bash
 git clone https://github.com/feng-qi-yun/Totoro_feng_qi.git
@@ -62,7 +56,7 @@ cd Totoro_feng_qi
 
 没装 git 也行：打开仓库页面 → 绿色 `Code` 按钮 → `Download ZIP`，解压后进入该目录。
 
-## 第三步：安装依赖
+### 第三步：安装依赖
 
 ```bash
 pnpm install
@@ -70,7 +64,7 @@ pnpm install
 
 大约一两分钟。出现 `Done` 即可。
 
-## 第四步：生成配置文件
+### 第四步：生成配置文件
 
 ```bash
 cp .env.example .env
@@ -84,7 +78,7 @@ Copy-Item .env.example .env
 
 默认值就能用，不需要改。想改上游域名时才编辑 `.env`。
 
-## 第五步：拿到 Token
+### 第五步：拿到 Token
 
 Token 只能从你**已登录**的微信小程序进程内存里读出来，用这个纯本地小工具（不联网、不上传）：
 
@@ -107,7 +101,7 @@ sudo python3 memory_scanner_linux.py
 - 读别的进程内存需要管理员/root 权限，所以 Linux 要 `sudo`；Windows 版按它自己的说明运行。
 - **Token 有效期不长**（几十分钟量级），失效时回小程序重新登录、立刻重扫一次。
 
-## 第六步：告诉程序你的机型
+### 第六步：告诉程序你的机型
 
 ```bash
 TOTORO_TOKEN=<刚才的Token> pnpm setup:device
@@ -119,10 +113,9 @@ Windows PowerShell：
 $env:TOTORO_TOKEN="<刚才的Token>"; pnpm setup:device
 ```
 
-它会读取你**最近一次跑步记录**里用的机型与微信版本，写进 `.env`。学校按记录保存机型，写错或随机机型
-会与你的历史记录不一致，所以这一步别跳过（没跑过步就先跳过，程序会用兜底机型）。
+它会读取你**最近一次跑步记录**里用的机型与微信版本，写进 `.env`。
 
-## 第七步：启动
+### 第七步：启动
 
 ```bash
 pnpm dev
@@ -136,6 +129,10 @@ pnpm dev
 
 1. 粘贴 Token → 点「登录」；
 2. 在「跑步任务」里选**任务**和**路线**；
+
+**建议**
+   湖区只采取西操的路线，东操太小会导致拟合度过低
+
 3. 点「查看跑步数据」，核对里程、用时、配速、预估拟合度；
 4. 点「确认并开始跑步」（此时服务端会创建跑步场次）；
 5. **保持页面打开**：到点（开始时间 + 用时，最长约 25 分钟）后页面会自动提交成绩；
@@ -195,3 +192,16 @@ docs/DESIGN.md      实现原理与参数标定说明
 
 - 本项目是 [yuyuyudlc/Totoro](https://github.com/yuyuyudlc/Totoro) 的个人 fork，已改为本机单机运行。
 - 请只用自己的账号使用；`local-data/` 里有你的 Token 与真实轨迹，注意保护。
+
+### 本项目修改了什么？
+
+- 运行在本地
+- 添加了自定义机型功能
+- 添加自定义路线功能
+- 修改了一些参数让他更真实
+
+## 许可证
+
+[MIT](LICENSE) © 2026 feng-qi-yun
+
+仅供学习交流使用；请遵守所在学校的规定，使用本程序产生的一切后果由使用者自行承担。
