@@ -40,8 +40,13 @@ pnpm dev                  # → http://localhost:3000
 ```
 
 1. 用 `repos/open-totoro-token`（或 Windows 版）从已登录的微信小程序进程里读出 Token；
-2. 打开 http://localhost:3000，粘贴 Token 登录；
-3. 任务页选任务与路线 → 「查看跑步数据」核对预览 → 「确认并开始跑步」。
+2. **读出自己的机型**（学校按记录保存机型，写错或随机机型会和你的历史记录不一致）：
+   ```bash
+   TOTORO_TOKEN=<Token> npm run setup:device
+   ```
+   它会找你**最近一次跑步记录**里的 `phoneInfo` / `version` 写进 `.env`（只读接口，不提交成绩）；
+3. 打开 http://localhost:3000，粘贴 Token 登录；
+4. 任务页选任务与路线 → 「查看跑步数据」核对预览 → 「确认并开始跑步」。
 
 `.env` 只需要两个上游域名（默认已填好）：
 
@@ -88,6 +93,8 @@ pnpm build
 实测节奏对齐（真实记录 `sunrunId20261015440`：1436 秒 / 1425 点 / 间距中位 1.99 米）：生成轨迹采样率约 0.95 点/秒（间隔约 1.05 秒），间距中位约 2.9 米，差异来自用时区间更宽（真实那次贴在 0.957 的慢端）。
 
 任务没有固定路线时，预览显示“无固定路线”，开始后使用内置路线 1 生成轨迹，同时继续向上游提交空 `lineId` 和空 `sunrunPathPointList`。若学校启用了开跑人脸、随机人脸或摄像头检查，流程会在创建场次前停止，不会伪造校验资料。
+
+轨迹起点用**绝对坐标**：官方路线的第一个点（或真实跑步线的第一个点）。真实跑者每次都在同一个入口开跑，学校也可能校验起点位置，所以不做随机旋转，只有终点随里程落点不同。
 
 ### 里程与配速
 
@@ -159,10 +166,6 @@ TOTORO_TOKEN=<小程序 Token> npm run sample:runs -- --days 60 --detail \
 
 `local-data/` 已加入 `.gitignore`：里面既有待提交任务（含明文 Token），也有采样得到的个人跑步数据，**不要提交**。文件只在本机使用，请自行注意本机账号安全。
 
-## Markdown 对话框
+## 登录帮助对话框
 
-公共组件 `components/MarkdownDialog.jsx` 使用原生 `<dialog>` 提供焦点管理、Escape 与遮罩关闭。对话内容固定从项目根目录的 `dialog/index.md` 导入，由 `@next/mdx` 在开发或生产构建阶段编译，不会在浏览器运行时读取文件。
-
-## 评论区
-
-任务页底部通过 `@giscus/react` 接入仓库的 GitHub Discussions。评论按页面路径映射到 `General` 分类，首次发言需要使用 GitHub 账号授权 Giscus；仓库需要保持 Discussions 开启并安装 [Giscus GitHub App](https://github.com/apps/giscus)。嵌入区域会从站点同源的 `public/giscus-theme.css` 加载自定义主题，使编辑器、按钮和评论卡片保持项目的纸张底色、粗黑边框与方角风格。
+公共组件 `components/MarkdownDialog.jsx` 使用原生 `<dialog>` 提供焦点管理、Escape 与遮罩关闭。登录页的帮助内容固定从项目根目录的 `dialog/index.md` 导入，由 `@next/mdx` 在开发或生产构建阶段编译，不会在浏览器运行时读取文件。

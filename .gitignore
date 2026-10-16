@@ -28,6 +28,9 @@ build/
 # 只读采样得到的个人跑步数据（真实轨迹、成绩记录），只在本机使用，不提交
 local-data/
 
+# 本地待办笔记
+todolist.txt
+
 # Environment
 .env
 .env*

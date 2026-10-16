@@ -6,7 +6,6 @@ import { LogOut, RefreshCcw } from 'lucide-react';
 import { getRunTasks } from '../../lib/api';
 import StartRunPanel from '../../components/StartRunPanel';
 import MorningSignPanel from '../../components/MorningSignPanel';
-import DiscussionComments from '../../components/DiscussionComments';
 import useStore from '../../lib/store';
 
 export default function DashboardPage() {
@@ -120,7 +119,6 @@ export default function DashboardPage() {
       </section> : <section id="morning-task-panel" role="tabpanel" aria-labelledby="morning-task-tab">
         <MorningSignPanel />
       </section>}
-      <DiscussionComments />
     </main>
   );
 }
