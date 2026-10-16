@@ -55,6 +55,7 @@ export function parseArgs(argv) {
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === '--') continue;   // pnpm 会把 -- 原样透传过来
     const value = argv[index + 1];
     if (arg === '--token') { options.token = value || ''; index += 1; }
     else if (arg === '--days') { options.days = Math.max(1, Number(value) || 30); index += 1; }

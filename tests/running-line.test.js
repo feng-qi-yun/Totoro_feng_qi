@@ -4,6 +4,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { buildRunFixture, calculateRouteSimilarity, createRunPlan, haversineDistance } from '../lib/server/run-data.js';
 import { loadRunningLine, withRunningLine } from '../lib/server/running-lines.js';
+import { pointToPolylineDistance } from '../scripts/sample-real-runs.js';
 import { deriveRunningLine, findLapMeters } from '../scripts/derive-running-line.js';
 
 const LAT = 31.3727;
@@ -85,24 +86,34 @@ test('running lines are loaded from local files with a cache', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('generation follows the running line while fit stays measured against the official route', () => {
-  const official = [point(0, 0), point(0, 100), point(100, 100), point(100, 0)];
-  const runningLine = [point(12, 12), point(12, 88), point(88, 88), point(88, 12)];
-  const task = { taskId: 'paper-line', mileage: '0.50', minTime: '10', maxTime: '25' };
+test('generation walks the running line while fit stays measured against the official route', () => {
+  // 官方路线是 400×400 的方形边界，真实跑步线在它内侧 12 米
+  const official = [point(0, 0), point(0, 400), point(400, 400), point(400, 0)];
+  const runningLine = [point(12, 12), point(12, 388), point(388, 388), point(388, 12)];
+  const task = { taskId: 'paper-line', mileage: '1.00', minTime: '10', maxTime: '25' };
   const identity = { token: 't', stuNumber: '1', schoolCode: '1' };
   const route = { pointId: 'line', pointName: '操场', pointList: official, runningLine };
 
+  // 1) 关掉横向偏离时，轨迹应当贴着跑步线走（不是顺着官方方形边界）
+  const plain = buildRunFixture({ task, route, identity }, {
+    plan: createRunPlan(task), deviateRouteFit: false,
+  });
+  const toLine = plain.detail.pointList.map(item => pointToPolylineDistance(item, runningLine));
+  const toOfficial = plain.detail.pointList.map(item => pointToPolylineDistance(item, official));
+  // GPS 抖动本身有 ±3 米量级，阈值放到能区分「贴跑步线」与「顺官方折线」即可
+  assert.ok(Math.max(...toLine) < 6, `轨迹应贴着跑步线，最远 ${Math.max(...toLine).toFixed(1)}m`);
+  assert.ok(Math.min(...toOfficial) > 5, `轨迹不应顺着官方折线走，最近 ${Math.min(...toOfficial).toFixed(1)}m`);
+  // 贴着跑步线时对官方路线的拟合度接近 1（12 米偏移远小于 25 米阈值）
+  assert.equal(plain.exercise.fitDegree,
+    Number(calculateRouteSimilarity(plain.detail.pointList, official)).toFixed(2));
+
+  // 2) 默认（带标定）时拟合度落在目标区间，且上报值等于按官方折线重算的结果
   for (let sample = 0; sample < 5; sample += 1) {
     const fixture = buildRunFixture({ task, route, identity }, { plan: createRunPlan(task) });
-    const points = fixture.detail.pointList;
-    // 轨迹贴着跑步线（允许校准叠加的少量偏离，但远小于到官方折线的偏差）
-    const toLine = points.map(item => Math.min(...runningLine.map(vertex => haversineDistance(item, vertex))));
-    const toOfficial = points.map(item => Math.min(...official.map(vertex => haversineDistance(item, vertex))));
-    const average = values => values.reduce((total, value) => total + value, 0) / values.length;
-    assert.ok(average(toLine) < average(toOfficial), '轨迹应更贴近跑步线而不是官方折线');
-    // 上报的拟合度必须等于按官方折线重算的结果
+    const fitDegree = Number(fixture.exercise.fitDegree);
+    assert.ok(fitDegree >= 0.95 && fitDegree <= 0.99, `拟合度 ${fixture.exercise.fitDegree} 超出区间`);
     assert.equal(fixture.exercise.fitDegree,
-      Number(calculateRouteSimilarity(points, official)).toFixed(2));
+      Number(calculateRouteSimilarity(fixture.detail.pointList, official)).toFixed(2));
     assert.deepEqual(fixture.exercise.sunrunPathPointList, official, '上报的仍是官方路线点');
   }
 });

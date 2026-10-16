@@ -28,6 +28,7 @@ function parseArgs(argv) {
   const options = { token: process.env.TOTORO_TOKEN || '', days: 30, envFile: '.env', print: false, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === '--') continue;   // pnpm 会把 -- 原样透传过来
     if (arg === '--token') { options.token = argv[index + 1] || ''; index += 1; }
     else if (arg === '--days') { options.days = Math.max(1, Number(argv[index + 1]) || 30); index += 1; }
     else if (arg === '--env-file') { options.envFile = argv[index + 1] || '.env'; index += 1; }

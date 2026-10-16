@@ -100,6 +100,7 @@ function parseArgs(argv) {
   const options = { input: '', recordId: '', spacingMeters: 15, outDir: path.join(DEFAULT_INPUT_DIR, 'derived-routes'), help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === '--') continue;   // pnpm 会把 -- 原样透传过来
     const value = argv[index + 1];
     if (arg === '--record') { options.recordId = value || ''; index += 1; }
     else if (arg === '--spacing') { options.spacingMeters = Math.max(5, Number(value) || 15); index += 1; }
