@@ -204,4 +204,6 @@ docs/DESIGN.md      实现原理与参数标定说明
 
 [MIT](LICENSE) © 2026 feng-qi-yun
 
+注：上游 [yuyuyudlc/Totoro](https://github.com/yuyuyudlc/Totoro) 未声明许可证，其原始代码的版权归原作者所有；本仓库的 MIT 授权只覆盖本仓库新增与修改的部分。
+
 仅供学习交流使用；请遵守所在学校的规定，使用本程序产生的一切后果由使用者自行承担。
