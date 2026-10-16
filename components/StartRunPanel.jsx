@@ -117,7 +117,7 @@ export default function StartRunPanel({ task, route }) {
     {task && !route && <p className="limit-note" role="status">
       当前任务未配置固定路线；开始后仍会创建真实跑步场次，并按空路线任务提交成绩。
     </p>}
-    {!queueReady && <p className="limit-note" role="status">正在恢复跑步队列…</p>}
+    {!queueReady && <p className="limit-note" role="status">正在读取待提交任务…</p>}
     {queueReady && !preview && !result && queuedJobs.length === 0 && <button className="action-button" type="button" disabled={busy || !task} onClick={generatePreview}>
       {operation === 'preview' ? '正在生成数据…' : '查看跑步数据'}
     </button>}
@@ -150,12 +150,12 @@ export default function StartRunPanel({ task, route }) {
     </article>}
     {queuedJobs.map(job => <article className="run-result result-block" role="status" key={job.jobId}>
       <div>
-        <strong>{job.state === 'active' ? '正在提交跑步数据' : '跑步已加入延迟队列'}</strong>
+        <strong>{job.state === 'running' ? '正在提交跑步数据' : '已排入待提交'}</strong>
         <span>{job.track.routeName} · {job.track.km} km · {job.track.usedTime}</span>
       </div>
       <div className="inline-stats">
-        <span>{job.state === 'active' ? '独立 Worker 正在处理' : '正在等待独立 Worker'}</span>
-        <span>计划处理：{new Date(job.scheduledAt).toLocaleTimeString('zh-CN')}</span>
+        <span>{job.state === 'running' ? '正在提交' : '到点后自动提交（保持页面打开）'}</span>
+        <span>计划提交：{new Date(job.scheduledAt).toLocaleTimeString('zh-CN')}</span>
       </div>
       <p>任务 {job.jobId}</p>
     </article>)}

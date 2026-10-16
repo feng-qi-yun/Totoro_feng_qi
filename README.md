@@ -1,6 +1,6 @@
 # Totoro Sunrun
 
-Next.js 全栈练习项目，使用 App Router 承载前端页面和 `/api` 服务端接口，可直接部署到 Vercel。
+本机单机运行的运动打卡工具：Next.js App Router 承载前端页面与 `/api` 服务端接口，所有上游请求由服务端代发，只在本机跑，不对外提供服务。
 
 ## 技术栈
 
@@ -8,8 +8,9 @@ Next.js 全栈练习项目，使用 App Router 承载前端页面和 `/api` 服�
 - React
 - Zustand
 - Lucide React
-- BullMQ + Redis（跑步延迟队列）
 - pnpm
+
+本项目**只在本机运行**：没有 Redis、没有常驻 Worker、没有线上部署流程。待提交的成绩写在本机文件里（见「跑步待提交」），单人使用，其他人使用请自行 clone 一份跑在自己电脑上。
 
 ## 开发
 
@@ -26,30 +27,37 @@ pnpm test
 pnpm build
 ```
 
-## 部署
+## 在本机运行
 
-Vercel 使用默认 npm 流程即可：
-
-- Install Command: `npm install`
-- Build Command: `npm run build`
-- Output: Next.js 默认输出
-
-### 腾讯云生产环境
-
-推送到 `main` 后，[GitHub Actions 工作流](.github/workflows/deploy.yml) 会通过专用 SSH 密钥发布到腾讯云；也可以在 GitHub 的 Actions 页面手动运行。生产环境需要配置以下 Actions secrets：
-
-- `DEPLOY_HOST`：服务器地址
-- `DEPLOY_USER`：部署用户
-- `DEPLOY_SSH_KEY`：专用 Ed25519 私钥
-- `DEPLOY_KNOWN_HOSTS`：经过人工核验的服务器 SSH 公钥记录
-
-服务端的 [`ops/deploy.sh`](ops/deploy.sh) 会串行执行部署，在独立 Git worktree 中安装依赖和构建。构建成功后才原子切换 `/opt/totoro-runtime/current` 并重启服务；健康检查失败时自动恢复上一个版本，服务器保留最近三个版本。
-
-查看生产日志：
+要求：Node.js 20 以上、pnpm。**不需要 Redis、不需要数据库、不需要任何云服务。**
 
 ```bash
-sudo journalctl -u totoro -f
-sudo tail -f /var/log/nginx/error.log
+git clone <本仓库地址>
+cd Totoro_feng_qi
+pnpm install
+cp .env.example .env      # 默认值即可用；如学校有独立业务域名再改
+pnpm dev                  # → http://localhost:3000
+```
+
+1. 用 `repos/open-totoro-token`（或 Windows 版）从已登录的微信小程序进程里读出 Token；
+2. 打开 http://localhost:3000，粘贴 Token 登录；
+3. 任务页选任务与路线 → 「查看跑步数据」核对预览 → 「确认并开始跑步」。
+
+`.env` 只需要两个上游域名（默认已填好）：
+
+```dotenv
+SUNRUN_MINIPROGRAM_BASE_URL=https://wxxcx.xtotoro.com
+SUNRUN_MINIPROGRAM_FALLBACK_BASE_URL=https://app.xtotoro.com
+```
+
+其他可选环境变量：`TOTORO_PENDING_STORE` 指定待提交任务文件的位置（默认 `local-data/pending-runs.json`）。
+
+验证代码本身（都不联网、不碰学校接口）：
+
+```bash
+pnpm lint
+pnpm test
+pnpm build
 ```
 
 ## 当前功能与平台限制
@@ -65,7 +73,7 @@ sudo tail -f /var/log/nginx/error.log
 
 本项目不兑换或生成 Token。验证成功且资料包含 snCode、schoolCode、schoolCampusCode 后保存登录状态；旧扫码登录缓存会清除。
 
-`npm test` 使用本地模拟响应检查登录、任务与跑步请求契约，不请求生产接口。`security-audit/` 为分析材料，不参与项目 lint。
+`pnpm test` 使用本地模拟响应检查登录、任务、跑步与待提交队列的契约，不请求生产接口。`security-audit/` 为逆向分析材料，不参与项目 lint。
 
 ## 早操打卡
 
@@ -115,28 +123,17 @@ TOTORO_TOKEN=<小程序 Token> npm run sample:runs -- --days 60 --detail \
 
 `SUNRUN_MINIPROGRAM_BASE_URL` 必须设置为无路径的 HTTPS origin；使用原接口时为 `https://wxxcx.xtotoro.com`。开始跑步会请求 `getRunBegin` 和两段成绩提交接口。
 
-## 跑步延迟队列
+## 跑步待提交
 
-“确认开始”固定把任务写入 Redis，并按预览的完整跑步用时延迟执行。到期后，独立 Worker 使用确认时刻作为跑步开始时间，依次调用准备配置、`getRunBegin`、点位查询、`sunRunExercises` 和 `sunRunExercisesDetail` 正式接口。账号和记录是否隔离由正式后端负责，本项目不维护账号白名单或模式开关。
+成绩不能当场提交：`sunRunExercises` 里带的是这段运动的起止时间，真实客户端也是跑完才提交。本项目用一个**本地文件**实现这个等待，不用 Redis、不用常驻进程：
 
-配置 Redis 地址：
+- 「确认开始」先创建场次（`getRunBegin`），再把「场次 + 任务 + 跑步计划」写进 `local-data/pending-runs.json`，状态 `pending`；
+- 前端每 2 秒轮询任务状态，**轮询时若已到点（场次开始时间 + 用时）就顺手提交**，成功后状态变 `completed`；
+- 因此到点后**要打开页面**才会补交；关掉页面再回来、甚至重启程序，回来一开页面就会补上；
+- 每个任务只提交一次：整条流程不幂等，失败会记下原因且不自动重试，成功结果保留 1 小时、失败记录保留 1 天；
+- 若程序在提交过程中退出，该任务在下次读取时标记为失败（不重试，避免重复记成绩）。
 
-```dotenv
-REDIS_URL=redis://127.0.0.1:6379
-```
-
-Worker 执行正式请求需要完整请求资料，因此 Token、任务、路线和跑步计划会作为任务载荷直接保存在 Redis 中。Redis 必须部署在受信网络，禁止暴露到公网，并应配置访问认证与最小权限。
-
-网页与 Worker 必须使用完全相同的配置，并分别作为常驻进程启动：
-
-```bash
-pnpm dev
-pnpm worker:run
-```
-
-生产服务器使用 `totoro.service` 运行网页，使用 `ops/totoro-worker.service` 运行延迟任务 Worker。两者都连接仅监听本机的 Redis；部署脚本切换版本、失败回滚时会同时重启两个服务。
-
-整段正式接口流程不是幂等操作，因此每个 BullMQ 任务只执行一次，不对整个流程自动重试。成功结果保留一小时，失败结果保留一天；前端通过任务状态接口轮询并展示最终场次编号。
+`local-data/` 已加入 `.gitignore`：里面既有待提交任务（含明文 Token），也有采样得到的个人跑步数据，**不要提交**。文件只在本机使用，请自行注意本机账号安全。
 
 ## Markdown 对话框
 

@@ -13,7 +13,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 本仓库是 `yuyuyudlc/Totoro` 的个人 fork（`origin` = `feng-qi-yun/Totoro_zsb`），按以下约定工作：
 
 - **不推送到上游**，任何情况下都只允许推送到本 fork；默认只做本地提交，推送前先确认。
-- **禁止推送 `main`**：`deploy.yml` 的触发条件是 `push: branches: [main]`（或手动 dispatch），推 `main` 会直接部署到腾讯云。需要远端备份时推**分支**，不要推 `main`。
-- **不做超出本机的验证**：不启动开发/生产服务器，不部署，不调用学校线上接口，不碰线上 Redis。测试只在本地跑 `pnpm lint` / `pnpm test` / `pnpm build`，网络请求一律用注入的 mock。
+- **默认推分支，不推 `main`**：仓库已改为只在本机运行，线上部署流程（`deploy.yml`、`ops/`、`vercel.json`）已删除，推 `main` 不再触发任何部署；但 WIP 仍应在分支上迭代，需要备份就推分支。
+- **不做超出本机的验证**：不部署、不启动长期服务；测试只在本地跑 `pnpm lint` / `pnpm test` / `pnpm build`，网络请求一律用注入的 mock。只有在用户明确给出 Token 并要求时，才用 `scripts/sample-real-runs.js` 这类**只读**脚本访问学校接口。
 - **按节点自行提交**：一个完整改动做完（并通过本地验证）就 `git commit`，不要攒着等提醒；提交信息用仓库既有的 `feat:` / `fix:` / `docs:` 中文风格。
 - **提到 PR 不是授权提 PR**：用户会在自己充分测试后再决定是否向上游提 PR，agent 不主动发起。

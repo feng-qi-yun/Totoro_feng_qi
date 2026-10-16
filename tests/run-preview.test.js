@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { test } from 'node:test';
 import { createRunPreview, verifyRunPreview } from '../lib/server/run-preview.js';
 import { POST as previewPOST } from '../app/api/sunrun/preview/route.js';
@@ -75,19 +77,9 @@ function request(path, body) {
 }
 
 test('preview route metrics are the metrics queued by confirmed start', { concurrency: false }, async t => {
-  const queueKey = Symbol.for('totoro.liveRunQueue');
-  const previousQueue = globalThis[queueKey];
-  const previousRedisUrl = process.env.REDIS_URL;
-  const added = [];
-  globalThis[queueKey] = {
-    add: async (...args) => { added.push(args); },
-    getJobs: async () => added.map(([, data]) => ({
-      id: data.jobId,
-      data,
-      getState: async () => 'delayed',
-    })),
-  };
-  process.env.REDIS_URL = 'redis://127.0.0.1:6379';
+  const previousStore = process.env.TOTORO_PENDING_STORE;
+  const storePath = path.join(import.meta.dirname, '..', 'local-data', `test-preview-pending-${process.pid}.json`);
+  process.env.TOTORO_PENDING_STORE = storePath;
   t.mock.method(globalThis, 'fetch', async url => {
     const endpoint = new URL(url).pathname;
     const replies = {
@@ -99,7 +91,8 @@ test('preview route metrics are the metrics queued by confirmed start', { concur
           schoolCampusCode: 'campus-1',
         },
       },
-      '/wxxcx/platform/camera/currentTimeMillis': { status: '00', code: '0', body: 1 },
+      // 服务端时间必须真实：本地待提交队列按「开始时间 + 用时」判断是否到点
+      '/wxxcx/platform/camera/currentTimeMillis': { status: '00', code: '0', body: Date.now() },
       '/wxxcx/platform/sunrunFace/selectSunRunStartConfiguration': { status: '00', code: '0', body: { sunrunStartFace: '0', sunrunPointRandom: '0' } },
       '/wxxcx/platform/camera/getCameraConfig': { status: '00', code: '0', body: { flag: 0 } },
       '/wxxcx/platform/sunrunFace/selectSunRunRandomConfiguration': { status: '00', code: '0', body: {} },
@@ -111,10 +104,9 @@ test('preview route metrics are the metrics queued by confirmed start', { concur
     return Response.json(replies[endpoint]);
   });
   t.after(() => {
-    if (previousQueue === undefined) delete globalThis[queueKey];
-    else globalThis[queueKey] = previousQueue;
-    if (previousRedisUrl === undefined) delete process.env.REDIS_URL;
-    else process.env.REDIS_URL = previousRedisUrl;
+    if (previousStore === undefined) delete process.env.TOTORO_PENDING_STORE;
+    else process.env.TOTORO_PENDING_STORE = previousStore;
+    fs.rmSync(storePath, { force: true });
   });
 
   const body = {
@@ -136,10 +128,15 @@ test('preview route metrics are the metrics queued by confirmed start', { concur
     assert.equal(startBody.success, true);
     assert.equal(startBody.result.mode, 'queued');
     assert.deepEqual(startBody.result.track, previewBody.preview.track);
-    assert.equal(added.length, 1);
-    assert.equal(added[0][0], 'execute-live-run');
-    assert.equal(added[0][2].delay > 0, true);
-    assert.equal(added[0][1].payload.session.scantronId, 'route-session-1');
+    // 待提交任务写进本地文件（不再依赖 Redis / 独立 Worker）
+    const pending = JSON.parse(fs.readFileSync(storePath, 'utf8')).jobs;
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0].state, 'pending');
+    assert.equal(pending[0].payload.session.scantronId, 'route-session-1');
+    // 计划提交时间 = 场次开始时间 + 预览用时
+    const startedAt = Date.parse(pending[0].payload.session.runStartedAt);
+    assert.equal(Date.parse(pending[0].scheduledAt),
+      startedAt + pending[0].payload.plan.durationSeconds * 1000);
 
     const restoredResponse = await runJobPOST(request('/api/sunrun/run-job', {
       token: identity.token,
