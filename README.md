@@ -202,8 +202,6 @@ docs/DESIGN.md      实现原理与参数标定说明
 
 ## 许可证
 
-## 许可证说明
-
 本项目是 [Totoro](https://github.com/yuyuyudlc/Totoro) 的派生Fork仓库，原作者：yuyuyudlc。
 由feng-qi-yun Fork 并修改，首次修改日期：2026-10。
 
