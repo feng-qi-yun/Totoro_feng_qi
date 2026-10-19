@@ -202,8 +202,22 @@ docs/DESIGN.md      实现原理与参数标定说明
 
 ## 许可证
 
-[MIT](LICENSE) © 2026 feng-qi-yun
+## 许可证说明
 
-注：上游 [yuyuyudlc/Totoro](https://github.com/yuyuyudlc/Totoro) 未声明许可证，其原始代码的版权归原作者所有；本仓库的 MIT 授权只覆盖本仓库新增与修改的部分。
+本项目是 [Totoro](https://github.com/yuyuyudlc/Totoro) 的派生Fork仓库，原作者：yuyuyudlc。
+由feng-qi-yun Fork 并修改，首次修改日期：2026-10。
+
+本程序是自由软件：你可以根据自由软件基金会发布的 **GNU Affero 通用公共许可证第3版（AGPL v3.0）** 的条款，重新分发和/或修改它。
+
+分发本程序的目的是希望它有用，但**没有任何担保**；甚至没有适销性或特定用途适用性的默示担保。详情请参阅 GNU Affero 通用公共许可证。
+
+你应当随同本程序收到一份许可证副本，文件名为 `LICENSE`；
+如未收到，参见：<https://www.gnu.org/licenses/agpl-3.0.html>
+
+> AGPLv3特别提醒：
+若你将修改后的版本通过网络对外提供服务（网页、SaaS服务），你必须向该服务的使用者提供获取完整对应源代码的途径。
+
+原项目版权 Copyright (C) yuyuyudlc
+修改部分版权 Copyright (C) 2026 feng-qi-yun
 
 仅供学习交流使用；请遵守所在学校的规定，使用本程序产生的一切后果由使用者自行承担。
