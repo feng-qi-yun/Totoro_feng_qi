@@ -146,16 +146,16 @@ export default function DashboardPage() {
             </p>
           </div>
         )}
-        {!tasksLoading && task && <ImportedRoutesPanel
-          task={task}
-          userToken={userToken}
-          routes={importedRoutes}
-          onRefresh={routes => setImportedRoutes(routes || [])}
-        />}
         {!tasksLoading && <StartRunPanel key={`${task?.taskId || ''}:${route?.pointId || ''}`} task={task} route={route} />}
       </section> : <section id="morning-task-panel" role="tabpanel" aria-labelledby="morning-task-tab">
         <MorningSignPanel />
       </section>}
+      {activeTaskType === 'run' && !tasksLoading && task && <ImportedRoutesPanel
+        task={task}
+        userToken={userToken}
+        routes={importedRoutes}
+        onRefresh={routes => setImportedRoutes(routes || [])}
+      />}
     </main>
   );
 }

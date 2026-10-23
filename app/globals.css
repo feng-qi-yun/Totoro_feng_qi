@@ -735,7 +735,7 @@ select {
           }
 
 /* 导入路线面板 */
-.imported-routes { margin-top: 1.5rem; }
+.imported-routes { margin-bottom: 28px; }
 .imported-routes .run-result { margin-top: 0.75rem; }
 .route-preview-block { margin-top: 0.75rem; }
 .route-preview {

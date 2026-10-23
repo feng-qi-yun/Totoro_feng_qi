@@ -117,7 +117,7 @@ export default function ImportedRoutesPanel({ task, userToken, routes, onRefresh
     }
   }
 
-  return <section className="imported-routes" aria-label="导入路线管理">
+  return <section className="command-panel imported-routes" aria-label="导入路线管理">
     <div className="top-strip">
       <div className="panel-copy"><p className="block-label">Imported route</p><h2>导入路线</h2></div>
     </div>
