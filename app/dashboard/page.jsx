@@ -6,11 +6,12 @@ import { LogOut, RefreshCcw } from 'lucide-react';
 import { getImportedRoutes, getRunTasks } from '../../lib/api';
 import StartRunPanel from '../../components/StartRunPanel';
 import MorningSignPanel from '../../components/MorningSignPanel';
+import ImportedRoutesPanel from '../../components/ImportedRoutesPanel';
 import useStore from '../../lib/store';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { hasHydrated, isLoggedIn, userInfo, getAuthData, logout } = useStore();
+  const { hasHydrated, isLoggedIn, userInfo, token: userToken, getAuthData, logout } = useStore();
   const [tasks, setTasks] = useState([]);
   const [taskId, setTaskId] = useState('');
   const [pointId, setPointId] = useState('');
@@ -145,6 +146,12 @@ export default function DashboardPage() {
             </p>
           </div>
         )}
+        {!tasksLoading && task && <ImportedRoutesPanel
+          task={task}
+          userToken={userToken}
+          routes={importedRoutes}
+          onRefresh={routes => setImportedRoutes(routes || [])}
+        />}
         {!tasksLoading && <StartRunPanel key={`${task?.taskId || ''}:${route?.pointId || ''}`} task={task} route={route} />}
       </section> : <section id="morning-task-panel" role="tabpanel" aria-labelledby="morning-task-tab">
         <MorningSignPanel />

@@ -733,3 +733,17 @@ select {
   }
 
           }
+
+/* 导入路线面板 */
+.imported-routes { margin-top: 1.5rem; }
+.imported-routes .run-result { margin-top: 0.75rem; }
+.route-preview-block { margin-top: 0.75rem; }
+.route-preview {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+  display: block;
+  background: #fbfaf6;
+  border: 3px solid #111;
+  border-radius: 0;
+}

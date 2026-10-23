@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { buildRunFixture, calculateRouteSimilarity, createRunPlan, haversineDistance } from '../lib/server/run-data.js';
+import { POST as importedRoutesPOST } from '../app/api/sunrun/imported-routes/route.js';
+import {
+  deleteRunningLine,
+  importRunningLine,
+  renameRunningLine,
+} from '../lib/server/imported-routes.js';
 import { listRunningLines, loadRunningLine, withRunningLine } from '../lib/server/running-lines.js';
 import { pointToPolylineDistance } from '../scripts/sample-real-runs.js';
 import { deriveRunningLine, findLapMeters } from '../scripts/derive-running-line.js';
@@ -175,6 +181,132 @@ test('imported routes are listed with stable labels for the dropdown', () => {
     assert.equal(picked.pointId, 'sunrunLine-a');
     assert.ok(Array.isArray(picked.runningLine) && picked.runningLine.length === 4);
   } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('imported routes can be renamed and deleted', () => {
+  const dir = tempDir();
+  try {
+    const loop = [point(0, 0), point(0, 40), point(40, 40), point(40, 0)];
+    fs.writeFileSync(path.join(dir, 'sunrunLine-a.json'), JSON.stringify({
+      routeId: 'sunrunLine-a', routeName: '天目湖-西操场', lapMeters: 470, pointList: loop,
+    }));
+
+    // 重命名：写进文件，列表里优先用自定义名称
+    const renamed = renameRunningLine('sunrunLine-a', '  我的操场  ', { dir });
+    assert.equal(renamed.label, '我的操场');
+    assert.equal(listRunningLines({ dir })[0].label, '我的操场');
+    assert.equal(loadRunningLine('sunrunLine-a', { dir }).length, 4, '重命名不影响点列');
+
+    // 非法名称与非法 ID
+    assert.throws(() => renameRunningLine('sunrunLine-a', '   ', { dir }), /不能为空/);
+    assert.throws(() => renameRunningLine('sunrunLine-a', 'x'.repeat(41), { dir }), /不能超过/);
+    assert.throws(() => renameRunningLine('../etc/passwd', 'x', { dir }), /ID 不合法/);
+    assert.throws(() => deleteRunningLine('../etc/passwd', { dir }), /ID 不合法/);
+
+    // 删除
+    assert.deepEqual(deleteRunningLine('sunrunLine-a', { dir }), { lineId: 'sunrunLine-a' });
+    assert.deepEqual(listRunningLines({ dir }), []);
+    assert.throws(() => deleteRunningLine('sunrunLine-a', { dir }), /不存在/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('importing derives a running line from the newest real record', async () => {
+  const dir = tempDir();
+  try {
+    const { track } = stadiumLap({ laps: 4, samples: 1000 });
+    const officialRoute = { pointId: 'sunrunLine-x', pointName: '天目湖-西操场', pointList: [point(0, 0), point(0, 1)] };
+    const calls = [];
+    const imported = await importRunningLine({ token: 'tok', routeId: 'sunrunLine-x' }, {
+      dir,
+      loadProfile: async () => ({ token: 'tok', stuNumber: '20230001', schoolCode: 'SCH', campusId: 'C' }),
+      loadTasks: async () => [{ taskId: 'paper-1', runPointList: [officialRoute] }],
+      loadTrack: async request => {
+        calls.push(request);
+        return { recordId: 'sunrunId-1', recordDate: '2026-10-23', points: track };
+      },
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(imported.routeName, '天目湖-西操场');
+    assert.equal(imported.label, '天目湖-西操场-导入路线1');
+    assert.equal(imported.recordDate, '2026-10-23');
+    assert.ok(imported.pointCount > 10);
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, 'sunrunLine-x.json'), 'utf8'));
+    assert.equal(saved.derivedFrom, 'sunrunId-1');
+    assert.equal(saved.label, imported.label);
+    assert.ok(Math.abs(saved.lapMeters - imported.lapMeters) < 0.5);
+
+    // 再次导入同一条路线会覆盖，但保留改过的名字
+    renameRunningLine('sunrunLine-x', '跑操场', { dir });
+    const again = await importRunningLine({ token: 'tok', routeId: 'sunrunLine-x' }, {
+      dir,
+      loadProfile: async () => ({ token: 'tok', stuNumber: '20230001', schoolCode: 'SCH', campusId: 'C' }),
+      loadTasks: async () => [{ taskId: 'paper-1', runPointList: [officialRoute] }],
+      loadTrack: async () => ({ recordId: 'sunrunId-2', recordDate: '2026-10-24', points: track }),
+    });
+    assert.equal(again.label, '跑操场');
+    assert.equal(listRunningLines({ dir }).length, 1, '同一路线只有一条导入线');
+
+    // 找不到记录 / 圈数不足 都要给出可读错误
+    await assert.rejects(importRunningLine({ token: 'tok', routeId: 'sunrunLine-x' }, {
+      dir,
+      loadProfile: async () => ({ token: 'tok', stuNumber: '1', schoolCode: 'S', campusId: 'C' }),
+      loadTasks: async () => [{ taskId: 'paper-1', runPointList: [officialRoute] }],
+      loadTrack: async () => null,
+    }), /没有找到这条路线带轨迹的记录/);
+    await assert.rejects(importRunningLine({ token: 'tok', routeId: 'sunrunLine-x' }, {
+      dir,
+      loadProfile: async () => ({ token: 'tok', stuNumber: '1', schoolCode: 'S', campusId: 'C' }),
+      loadTasks: async () => [{ taskId: 'paper-1', runPointList: [officialRoute] }],
+      loadTrack: async () => ({ recordId: 'r', recordDate: 'd', points: [point(0, 0), point(1, 1)] }),
+    }), /推不出跑步线/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('imported route API lists, renames and deletes local lines', async () => {
+  const dir = tempDir();
+  const previous = process.env.TOTORO_RUNNING_LINE_DIR;
+  process.env.TOTORO_RUNNING_LINE_DIR = dir;
+  try {
+    const loop = [point(0, 0), point(0, 40), point(40, 40), point(40, 0)];
+    fs.writeFileSync(path.join(dir, 'sunrunLine-api.json'), JSON.stringify({
+      routeId: 'sunrunLine-api', routeName: '天目湖-西操场', lapMeters: 470, recordDate: '2026-10-23', pointList: loop,
+    }));
+
+    const call = async body => {
+      const response = await importedRoutesPOST(new Request('http://localhost/api/sunrun/imported-routes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }));
+      return { status: response.status, body: await response.json() };
+    };
+
+    const listed = await call({});
+    assert.equal(listed.status, 200);
+    assert.equal(listed.body.routes[0].label, '天目湖-西操场-导入路线1');
+    assert.equal(listed.body.routes[0].pointList.length, 4, '列表要带点列供界面画图');
+
+    const renamed = await call({ action: 'rename', line_id: 'sunrunLine-api', label: '我的操场' });
+    assert.equal(renamed.status, 200);
+    assert.equal(renamed.body.routes[0].label, '我的操场');
+
+    const deleted = await call({ action: 'delete', line_id: 'sunrunLine-api' });
+    assert.equal(deleted.status, 200);
+    assert.deepEqual(deleted.body.routes, []);
+
+    const bad = await call({ action: 'rename', line_id: '../x', label: 'x' });
+    assert.equal(bad.status, 400);
+    assert.match(bad.body.message, /ID 不合法/);
+  } finally {
+    if (previous === undefined) delete process.env.TOTORO_RUNNING_LINE_DIR;
+    else process.env.TOTORO_RUNNING_LINE_DIR = previous;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

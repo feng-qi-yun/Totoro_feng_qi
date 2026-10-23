@@ -86,6 +86,11 @@
 实测（西操场，40 次平均）：拟合度 0.971（真实 0.980）、离官方路线 p50 11.8 / p90 21.5 / max 29.0 米
 （真实 10.4 / 20.1 / 27.6）。
 
+运维接口：`app/api/sunrun/imported-routes/route.js` 一个端点四种 action——
+`list`（默认）/ `rename`（写入文件的 `label`，≤40 字且过滤换行）/ `delete` /
+`import`（用 Token 取最近一次跑过该官方路线的记录 `routeItudes`，套用 `deriveRunningLine()` 后写入文件）。
+路线 ID 只允许 `[A-Za-z0-9_-]`，避免路径穿越；重复导入同一路线会覆盖，但保留已改过的名字。
+
 界面呈现：`lib/server/running-lines.js` 的 `listRunningLines()` 把 `local-data/derived-routes/*.json` 列成
 「<官方路线名>-导入路线1/2…」（`/api/sunrun/imported-routes`，编号按文件名排序、损坏文件跳过且不占号），
 每条都带 `baseRouteId` / `baseRouteName`，明确它关联的是哪条官方路线；任务页把它并入路线下拉框。选中「导入路线N」时，
