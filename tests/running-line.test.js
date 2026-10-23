@@ -117,3 +117,34 @@ test('generation walks the running line while fit stays measured against the off
     assert.deepEqual(fixture.exercise.sunrunPathPointList, official, '上报的仍是官方路线点');
   }
 });
+
+// 一圈约 430 米的椭圆跑道（24 个顶点）
+function stadiumRoute() {
+  const semiNorth = 85;
+  const semiEast = 50;
+  const pointList = Array.from({ length: 24 }, (_, index) => {
+    const angle = index / 24 * 2 * Math.PI;
+    return point(
+      Number((semiNorth * Math.cos(angle)).toFixed(2)),
+      Number((semiEast * Math.sin(angle)).toFixed(2)),
+    );
+  });
+  return { pointId: 'line-loop', pointName: '操场跑道', pointList };
+}
+
+const loopIdentity = { token: 't', stuNumber: '1', schoolCode: '1' };
+
+test('multi-lap tracks overlap lap over lap like a real run', () => {
+  // 真实记录：5.6 圈折叠散度 4.6 米。横向偏离若按整条轨迹进度取值，
+  // 会叠出「形状相同、大小不同」的嵌套椭圆，这里锁住各圈必须互相重合。
+  const route = stadiumRoute();
+  // 跑 5.6 圈（与真实记录相当）——圈数太少时折叠搜索不可靠
+  const task = { taskId: 'paper-lap', mileage: '2.40', minTime: '10', maxTime: '25' };
+  for (let sample = 0; sample < 3; sample += 1) {
+    const fixture = buildRunFixture({ task, route, identity: loopIdentity }, { plan: createRunPlan(task) });
+    assert.ok(fixture.detail.pointList.length > 600, '应有足够点数');
+    const best = findLapMeters(fixture.detail.pointList, { min: 250, max: 800, step: 0.5 });
+    assert.ok(best.lapMeters < 790, `圈长应落在环线附近，实际 ${best.lapMeters.toFixed(0)}m`);
+    assert.ok(best.spread < 8, `各圈应互相重合，折叠散度 ${best.spread.toFixed(1)}m`);
+  }
+});
