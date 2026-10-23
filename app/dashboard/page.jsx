@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, RefreshCcw } from 'lucide-react';
-import { getRunTasks } from '../../lib/api';
+import { getImportedRoutes, getRunTasks } from '../../lib/api';
 import StartRunPanel from '../../components/StartRunPanel';
 import MorningSignPanel from '../../components/MorningSignPanel';
 import useStore from '../../lib/store';
@@ -18,8 +18,29 @@ export default function DashboardPage() {
   const [tasksLoading, setTasksLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [activeTaskType, setActiveTaskType] = useState('run');
+  const [importedRoutes, setImportedRoutes] = useState([]);
   const task = tasks.find(item => item.taskId === taskId) || tasks[0];
-  const route = task?.runPointList.find(point => point.pointId === pointId) || task?.runPointList[0];
+  // 下拉框选项：官方路线 + 本机由真实记录导出的「导入路线N」
+  const routeOptions = [
+    ...(task?.runPointList || []).map(point => ({
+      value: point.pointId,
+      label: point.pointName,
+      route: point,
+    })),
+    ...importedRoutes
+      .filter(item => (task?.runPointList || []).some(point => point.pointId === item.lineId))
+      .map(item => {
+        const base = task.runPointList.find(point => point.pointId === item.lineId);
+        return {
+          value: `imported:${item.lineId}`,
+          label: item.label,
+          // 走线用导入的真实跑步线；上报的仍是这条官方路线（pointId / pointList 不变）
+          route: { ...base, pointName: item.label, importedLineId: item.lineId },
+        };
+      }),
+  ];
+  const selectedRoute = routeOptions.find(option => option.value === pointId) || routeOptions[0];
+  const route = selectedRoute?.route;
 
   useEffect(() => {
     if (!hasHydrated || !isLoggedIn) return;
@@ -38,6 +59,15 @@ export default function DashboardPage() {
     }).finally(() => { if (active) setTasksLoading(false); });
     return () => { active = false; };
   }, [hasHydrated, isLoggedIn, getAuthData, revision]);
+
+  useEffect(() => {
+    if (!hasHydrated || !isLoggedIn) return undefined;
+    let active = true;
+    getImportedRoutes().then(result => {
+      if (active && result.success) setImportedRoutes(result.routes || []);
+    }).catch(() => { /* 没有导入路线时保持官方路线列表 */ });
+    return () => { active = false; };
+  }, [hasHydrated, isLoggedIn]);
 
   useEffect(() => {
     if (hasHydrated && !isLoggedIn) router.replace('/');
@@ -103,10 +133,10 @@ export default function DashboardPage() {
               </select>
             </label>
             <label><span>跑步路线</span>
-              <select value={task.runPointList.some(point => point.pointId === pointId) ? pointId : task.runPointList[0]?.pointId || ''}
-                disabled={!task.runPointList.length} onChange={event => setPointId(event.target.value)}>
-                {!task.runPointList.length && <option value="">暂无路线</option>}
-                {task.runPointList.map(point => <option key={point.pointId} value={point.pointId}>{point.pointName}</option>)}
+              <select value={selectedRoute?.value || ''}
+                disabled={!routeOptions.length} onChange={event => setPointId(event.target.value)}>
+                {!routeOptions.length && <option value="">暂无路线</option>}
+                {routeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
             <p className="limit-note">{task.mileage} 公里 · {task.minTime}–{task.maxTime} 分钟<br />

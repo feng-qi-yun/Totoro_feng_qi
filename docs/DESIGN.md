@@ -86,6 +86,16 @@
 实测（西操场，40 次平均）：拟合度 0.971（真实 0.980）、离官方路线 p50 11.8 / p90 21.5 / max 29.0 米
 （真实 10.4 / 20.1 / 27.6）。
 
+界面呈现：`lib/server/running-lines.js` 的 `listRunningLines()` 把 `local-data/derived-routes/*.json` 列成
+「<官方路线名>-导入路线1/2…」（`/api/sunrun/imported-routes`，编号按文件名排序、损坏文件跳过且不占号），
+每条都带 `baseRouteId` / `baseRouteName`，明确它关联的是哪条官方路线；任务页把它并入路线下拉框。选中「导入路线N」时，
+前端仍按对应的**官方路线**提交（`pointId`/`lineId`/`sunrunPathPointList` 不变），只是额外带
+`importedLineId`，服务端据此把「真实跑步线」挂到 `route.runningLine` 供走线使用。
+
+横向偏离按**圈内相位**取值：相位由走线过程直接记录（`generateCoordinates` 边走边累积弧长），
+不靠投影猜测。若按整条轨迹进度取值，圈数一多就会叠出"形状相同、大小不同"的嵌套椭圆
+（实测折叠散度会从 2 米涨到 20~30 米，而真实记录 5.6 圈只有 4.6 米）。
+
 ## 待提交任务（本地文件）
 
 成绩不能当场提交：`sunRunExercises` 带的是这段运动的起止时间，真实客户端也是跑完才提交。本机版用

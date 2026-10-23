@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { buildRunFixture, calculateRouteSimilarity, createRunPlan, haversineDistance } from '../lib/server/run-data.js';
-import { loadRunningLine, withRunningLine } from '../lib/server/running-lines.js';
+import { listRunningLines, loadRunningLine, withRunningLine } from '../lib/server/running-lines.js';
 import { pointToPolylineDistance } from '../scripts/sample-real-runs.js';
 import { deriveRunningLine, findLapMeters } from '../scripts/derive-running-line.js';
 
@@ -146,5 +146,35 @@ test('multi-lap tracks overlap lap over lap like a real run', () => {
     const best = findLapMeters(fixture.detail.pointList, { min: 250, max: 800, step: 0.5 });
     assert.ok(best.lapMeters < 790, `圈长应落在环线附近，实际 ${best.lapMeters.toFixed(0)}m`);
     assert.ok(best.spread < 8, `各圈应互相重合，折叠散度 ${best.spread.toFixed(1)}m`);
+  }
+});
+
+test('imported routes are listed with stable labels for the dropdown', () => {
+  const dir = tempDir();
+  try {
+    assert.deepEqual(listRunningLines({ dir }), []);
+    const loop = [point(0, 0), point(0, 40), point(40, 40), point(40, 0)];
+    fs.writeFileSync(path.join(dir, 'sunrunLine-a.json'), JSON.stringify({
+      routeId: 'sunrunLine-a', routeName: '天目湖-西操场', lapMeters: 469.8, pointList: loop,
+    }));
+    fs.writeFileSync(path.join(dir, 'sunrunLine-b.json'), JSON.stringify({
+      routeId: 'sunrunLine-b', routeName: '图书馆', lapMeters: 512, pointList: loop,
+    }));
+    fs.writeFileSync(path.join(dir, 'broken.json'), '{ not json');
+
+    const list = listRunningLines({ dir });
+    assert.deepEqual(list.map(item => item.label), ['天目湖-西操场-导入路线1', '图书馆-导入路线2']);
+    assert.deepEqual(list.map(item => item.lineId), ['sunrunLine-a', 'sunrunLine-b']);
+    assert.equal(list[0].baseRouteName, '天目湖-西操场');
+    assert.equal(list[0].baseRouteId, 'sunrunLine-a');
+    assert.equal(list[0].pointCount, 4);
+    // 界面选中「导入路线1」时，走线用导入线、上报仍是官方路线
+    const officialRoute = { pointId: 'sunrunLine-a', pointName: '天目湖-西操场', pointList: loop };
+    const picked = withRunningLine({ ...officialRoute, pointName: list[0].label, importedLineId: list[0].lineId }, { dir });
+    assert.equal(picked.pointName, '天目湖-西操场-导入路线1');
+    assert.equal(picked.pointId, 'sunrunLine-a');
+    assert.ok(Array.isArray(picked.runningLine) && picked.runningLine.length === 4);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
